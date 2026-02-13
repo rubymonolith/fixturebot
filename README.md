@@ -165,6 +165,10 @@ FixtureBot.define do
 end
 ```
 
+#### primary key type
+
+FixtureBot attempts to auto-detect the primary key type of your database. It supports both `:integer` and `:uuid` primary key types and falls back to `:integer` if it cannot detect the type.
+
 ### Generators
 
 Generators set default column values. They run for each record that doesn't explicitly set that column. Generators are never created implicitly; columns without a value or generator are omitted from the YAML output (Rails uses the database column default).
