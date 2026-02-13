@@ -15,7 +15,8 @@ module FixtureBot
           row: row,
           table: schema.tables[row.table],
           defaults: definition.defaults[row.table],
-          join_tables: schema.join_tables
+          join_tables: schema.join_tables,
+          tables: schema.tables
         )
 
         @tables[row.table][row.name] = builder.record

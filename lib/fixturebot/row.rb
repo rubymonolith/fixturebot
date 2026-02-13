@@ -51,15 +51,16 @@ module FixtureBot
     end
 
     class Builder
-      def initialize(row:, table:, defaults:, join_tables:)
+      def initialize(row:, table:, defaults:, join_tables:, tables: {})
         @row = row
         @table = table
         @defaults = defaults
         @join_tables = join_tables
+        @tables = tables
       end
 
       def id
-        @id ||= Key.generate(@row.table, @row.name)
+        @id ||= generate_key_for(@table, @row.table, @row.name)
       end
 
       def record
@@ -87,8 +88,17 @@ module FixtureBot
 
       private
 
+      def generate_key_for(table_schema, table_name, record_name)
+        if table_schema&.primary_key_type == :uuid
+          Key.generate_uuid(table_name, record_name)
+        else
+          Key.generate(table_name, record_name)
+        end
+      end
+
       def build_join_row(jt, other_table, tag_ref)
-        other_id = Key.generate(other_table, tag_ref)
+        other_table_schema = @tables[other_table]
+        other_id = generate_key_for(other_table_schema, other_table, tag_ref)
 
         if jt.left_table == @row.table
           {
@@ -108,7 +118,8 @@ module FixtureBot
       def foreign_key_values
         @foreign_key_values ||= @row.association_refs.each_with_object({}) do |(assoc_name, ref), hash|
           assoc = @table.belongs_to_associations.find { |a| a.name == assoc_name }
-          hash[assoc.foreign_key] = Key.generate(assoc.table, ref)
+          referenced_table = @tables[assoc.table]
+          hash[assoc.foreign_key] = generate_key_for(referenced_table, assoc.table, ref)
         end
       end
 

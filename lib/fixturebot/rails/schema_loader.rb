@@ -42,6 +42,8 @@ module FixtureBot
           .reject { |c| framework_column?(c.name) }
           .map { |c| c.name.to_sym }
 
+        primary_key_type = detect_primary_key_type(name)
+
         associations = @connection.foreign_keys(name).map do |fk|
           Schema::BelongsTo.new(
             name: association_name(fk.column),
@@ -54,8 +56,19 @@ module FixtureBot
           name: name.to_sym,
           singular_name: singularize(name),
           columns: columns,
-          belongs_to_associations: associations
+          belongs_to_associations: associations,
+          primary_key_type: primary_key_type
         )
+      end
+
+      def detect_primary_key_type(table_name)
+        pk = @connection.primary_key(table_name)
+        return :integer unless pk
+
+        column = @connection.columns(table_name).find { |c| c.name == pk }
+        return :integer unless column
+
+        column.type == :uuid ? :uuid : :integer
       end
 
       def build_join_table(name)

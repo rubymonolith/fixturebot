@@ -70,4 +70,10 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
   it "does not include join tables in regular tables" do
     expect(schema.tables).not_to have_key(:posts_tags)
   end
+
+  it "defaults primary_key_type to :integer for standard tables" do
+    schema.tables.each_value do |table|
+      expect(table.primary_key_type).to eq(:integer)
+    end
+  end
 end

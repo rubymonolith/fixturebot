@@ -2,7 +2,17 @@
 
 module FixtureBot
   class Schema
-    Table = Data.define(:name, :singular_name, :columns, :belongs_to_associations)
+    Table = Data.define(:name, :singular_name, :columns, :belongs_to_associations, :primary_key_type) do
+      SUPPORTED_PRIMARY_KEY_TYPES = %i[integer uuid].freeze
+
+      def initialize(name:, singular_name:, columns:, belongs_to_associations:, primary_key_type: :integer)
+        unless SUPPORTED_PRIMARY_KEY_TYPES.include?(primary_key_type)
+          raise ArgumentError, "unsupported primary_key_type: #{primary_key_type.inspect} (must be one of #{SUPPORTED_PRIMARY_KEY_TYPES.join(', ')})"
+        end
+
+        super
+      end
+    end
     BelongsTo = Data.define(:name, :table, :foreign_key)
     JoinTable = Data.define(:name, :left_table, :right_table, :left_foreign_key, :right_foreign_key)
 
@@ -33,7 +43,7 @@ module FixtureBot
         @schema = schema
       end
 
-      def table(name, singular:, columns: [], &block)
+      def table(name, singular:, columns: [], primary_key_type: :integer, &block)
         associations = []
         if block
           table_builder = TableBuilder.new(associations)
@@ -43,7 +53,8 @@ module FixtureBot
           name: name,
           singular_name: singular,
           columns: columns,
-          belongs_to_associations: associations
+          belongs_to_associations: associations,
+          primary_key_type: primary_key_type
         ))
       end
 
