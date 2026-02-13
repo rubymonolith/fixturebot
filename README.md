@@ -165,9 +165,11 @@ FixtureBot.define do
 end
 ```
 
-#### primary key type
+#### Stable Primary Key Generation
 
-FixtureBot attempts to auto-detect the primary key type of your database. It supports both `:integer` and `:uuid` primary key types and falls back to `:integer` if it cannot detect the type.
+Stable IDs are generated using a deterministic algorithm that is consistent across runs.
+
+When generating records, FixtureBot auto-detects the primary key type for each table. It supports `:integer` and `:uuid`, falling back to `:integer` if it cannot detect the type.
 
 ### Generators
 
