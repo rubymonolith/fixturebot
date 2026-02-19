@@ -5,7 +5,6 @@ require "active_record"
 module FixtureBot
   module Rails
     class SchemaLoader
-
       def self.load(connection = ActiveRecord::Base.connection)
         new(connection).load
       end
@@ -38,11 +37,13 @@ module FixtureBot
       end
 
       def build_table(name)
+        pk_name = @connection.primary_key(name)
+
         columns = @connection.columns(name)
-          .reject { |c| framework_column?(c.name) }
+          .reject { |c| c.name == pk_name || timestamp_column?(c.name) }
           .map { |c| c.name.to_sym }
 
-        primary_key_type = detect_primary_key_type(name)
+        primary_key_type = detect_primary_key_type(name, pk_name)
 
         associations = @connection.foreign_keys(name).map do |fk|
           Schema::BelongsTo.new(
@@ -57,18 +58,19 @@ module FixtureBot
           singular_name: singularize(name),
           columns: columns,
           belongs_to_associations: associations,
-          primary_key_type: primary_key_type
+          primary_key_type: primary_key_type,
+          primary_key_column: (pk_name || "id").to_sym
         )
       end
 
-      def detect_primary_key_type(table_name)
-        pk = @connection.primary_key(table_name)
-        return :integer unless pk
+      def detect_primary_key_type(table_name, pk_name = nil)
+        pk_name ||= @connection.primary_key(table_name)
+        return Key::Integer.new unless pk_name
 
-        column = @connection.columns(table_name).find { |c| c.name == pk }
-        return :integer unless column
+        column = @connection.columns(table_name).find { |c| c.name == pk_name }
+        return Key::Integer.new unless column
 
-        column.type == :uuid ? :uuid : :integer
+        (column.type == :uuid) ? Key::UUID.new : Key::Integer.new
       end
 
       def build_join_table(name)
@@ -87,8 +89,8 @@ module FixtureBot
         @connection.tables - %w[ar_internal_metadata schema_migrations]
       end
 
-      def framework_column?(name)
-        %w[id created_at updated_at].include?(name)
+      def timestamp_column?(name)
+        %w[created_at updated_at].include?(name)
       end
 
       def foreign_key_column?(column)

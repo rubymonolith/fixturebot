@@ -71,9 +71,29 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
     expect(schema.tables).not_to have_key(:posts_tags)
   end
 
-  it "defaults primary_key_type to :integer for standard tables" do
+  it "defaults primary_key_type to Key::Integer for standard tables" do
     schema.tables.each_value do |table|
-      expect(table.primary_key_type).to eq(:integer)
+      expect(table.primary_key_type).to be_a(FixtureBot::Key::Integer)
+    end
+  end
+
+  it "detects primary_key_column as :id for standard tables" do
+    schema.tables.each_value do |table|
+      expect(table.primary_key_column).to eq(:id)
+    end
+  end
+
+  context "when a table has a custom primary key column" do
+    before do
+      ActiveRecord::Base.connection.execute('CREATE TABLE "accounts" ("account_uid" varchar PRIMARY KEY, "name" varchar)')
+    end
+
+    it "detects primary_key_column from the database" do
+      expect(schema.tables[:accounts].primary_key_column).to eq(:account_uid)
+    end
+
+    it "excludes the custom primary key column from columns" do
+      expect(schema.tables[:accounts].columns).to eq([:name])
     end
   end
 end

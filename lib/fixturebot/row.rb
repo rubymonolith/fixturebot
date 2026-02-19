@@ -12,12 +12,20 @@ module FixtureBot
         @association_refs = {}
         @tag_refs = {}
 
+        define_primary_key_method(table)
         define_column_methods(table)
         define_association_methods(table)
         define_join_table_methods(table, schema)
       end
 
       private
+
+      def define_primary_key_method(table)
+        pk_col = table.primary_key_column
+        define_singleton_method(pk_col) do |value|
+          @literal_values[pk_col] = value
+        end
+      end
 
       def define_column_methods(table)
         table.columns.each do |col|
@@ -51,20 +59,22 @@ module FixtureBot
     end
 
     class Builder
-      def initialize(row:, table:, defaults:, join_tables:, tables: {})
+      def initialize(row:, table:, defaults:, join_tables:, tables: {}, id_map: {})
         @row = row
         @table = table
         @defaults = defaults
         @join_tables = join_tables
         @tables = tables
+        @id_map = id_map
       end
 
       def id
-        @id ||= generate_key_for(@table, @row.table, @row.name)
+        pk_col = @table.primary_key_column
+        @id ||= @row.literal_values.fetch(pk_col) { generate_key_for(@table, @row.table, @row.name) }
       end
 
       def record
-        result = { id: id }
+        result = { @table.primary_key_column => id }
         @table.columns.each do |col|
           if @row.literal_values.key?(col)
             result[col] = @row.literal_values[col]
@@ -89,11 +99,10 @@ module FixtureBot
       private
 
       def generate_key_for(table_schema, table_name, record_name)
-        if table_schema&.primary_key_type == :uuid
-          Key.generate_uuid(table_name, record_name)
-        else
-          Key.generate(table_name, record_name)
-        end
+        return @id_map[[table_name, record_name]] if @id_map.key?([table_name, record_name])
+
+        key = table_schema&.primary_key_type || Key::Integer.new
+        key.generate(table_name, record_name)
       end
 
       def build_join_row(jt, other_table, tag_ref)

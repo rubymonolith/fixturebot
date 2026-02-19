@@ -38,7 +38,7 @@ RSpec.describe FixtureBot::Rails::SchemaLoader, "MySQL UUID detection" do
     allow(connection).to receive(:columns).with("users").and_return([string_column])
   end
 
-  it "returns :integer because column type is :string, not :uuid" do
-    expect(schema.tables[:users].primary_key_type).to eq(:integer)
+  it "returns Integer key because column type is :string, not :uuid" do
+    expect(schema.tables[:users].primary_key_type).to be_a(FixtureBot::Key::Integer)
   end
 end

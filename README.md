@@ -167,7 +167,29 @@ end
 
 #### Stable Primary Key Generation
 
-Stable IDs are generated using a deterministic algorithm that is consistent across runs.
+You can always define your own primary keys on a fixture definition, this is helpful if you want to use a known value or are bringing over existing fixtures.
+
+Example:
+
+```ruby
+FixtureBot.define do
+  user :brad do
+    id 1
+    name "Brad"
+  end
+
+  post :hello_world do
+    id "a3aed36c-5506-49b9-b797-2d2cc7ada3e0"
+  end
+
+  # FixtureBot can handle primary key column names other than "id"
+  tag :ruby do
+    custom_primary_key_column 200
+  end
+end
+```
+
+Otherwise, you can let FixtureBot generate a stable ID for you, using a deterministic algorithm that is consistent across runs.
 
 When generating records, FixtureBot auto-detects the primary key type for each table. It supports `:integer` and `:uuid`, falling back to `:integer` if it cannot detect the type.
 
@@ -279,6 +301,11 @@ FixtureBot::Schema.define do
   table :posts, singular: :post, columns: [:title, :body, :author_id] do
     belongs_to :author, table: :users
   end
+
+  # primary_key_type: sets the key generation strategy (:integer or :uuid)
+  # primary_key_column: sets the column name (defaults to :id)
+  table :accounts, singular: :account, columns: [:name],
+    primary_key_type: :uuid, primary_key_column: :uid
 
   table :tags, singular: :tag, columns: [:name]
 

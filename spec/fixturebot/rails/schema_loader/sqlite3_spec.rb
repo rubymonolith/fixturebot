@@ -38,8 +38,8 @@ RSpec.describe FixtureBot::Rails::SchemaLoader, "SQLite UUID detection" do
     allow(connection).to receive(:columns).with("users").and_return([string_column])
   end
 
-  it "returns :integer because column type is :string, not :uuid" do
-    expect(schema.tables[:users].primary_key_type).to eq(:integer)
+  it "returns Integer key because column type is :string, not :uuid" do
+    expect(schema.tables[:users].primary_key_type).to be_a(FixtureBot::Key::Integer)
   end
 
   context "when table has no primary key" do
@@ -47,8 +47,8 @@ RSpec.describe FixtureBot::Rails::SchemaLoader, "SQLite UUID detection" do
       allow(connection).to receive(:primary_key).with("users").and_return(nil)
     end
 
-    it "returns :integer" do
-      expect(schema.tables[:users].primary_key_type).to eq(:integer)
+    it "returns Integer key" do
+      expect(schema.tables[:users].primary_key_type).to be_a(FixtureBot::Key::Integer)
     end
   end
 end

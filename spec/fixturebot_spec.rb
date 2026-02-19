@@ -78,52 +78,80 @@ RSpec.describe FixtureBot do
       ruby_id = result.tables[:tags][:ruby][:id]
       rails_id = result.tables[:tags][:rails][:id]
 
-      expect(join[:hello_world_ruby]).to eq({ post_id: post_id, tag_id: ruby_id })
-      expect(join[:hello_world_rails]).to eq({ post_id: post_id, tag_id: rails_id })
+      expect(join[:hello_world_ruby]).to eq({post_id: post_id, tag_id: ruby_id})
+      expect(join[:hello_world_rails]).to eq({post_id: post_id, tag_id: rails_id})
     end
   end
 
-  describe FixtureBot::Key do
+  describe FixtureBot::Key::Integer do
+    subject(:key) { described_class.new }
+
     it "generates deterministic IDs" do
-      id1 = FixtureBot::Key.generate(:users, :admin)
-      id2 = FixtureBot::Key.generate(:users, :admin)
+      id1 = key.generate(:users, :admin)
+      id2 = key.generate(:users, :admin)
       expect(id1).to eq(id2)
     end
 
     it "generates positive integers" do
-      id = FixtureBot::Key.generate(:users, :admin)
+      id = key.generate(:users, :admin)
       expect(id).to be > 0
     end
 
     it "generates different IDs for different records" do
-      id1 = FixtureBot::Key.generate(:users, :admin)
-      id2 = FixtureBot::Key.generate(:users, :reader)
+      id1 = key.generate(:users, :admin)
+      id2 = key.generate(:users, :reader)
       expect(id1).not_to eq(id2)
     end
   end
 
-  describe FixtureBot::Key, ".generate_uuid" do
+  describe FixtureBot::Key::UUID do
+    subject(:key) { described_class.new }
+
     it "generates deterministic UUIDs" do
-      uuid1 = FixtureBot::Key.generate_uuid(:users, :admin)
-      uuid2 = FixtureBot::Key.generate_uuid(:users, :admin)
+      uuid1 = key.generate(:users, :admin)
+      uuid2 = key.generate(:users, :admin)
       expect(uuid1).to eq(uuid2)
     end
 
     it "generates valid UUID v5 format" do
-      uuid = FixtureBot::Key.generate_uuid(:users, :admin)
+      uuid = key.generate(:users, :admin)
       expect(uuid).to match(/\A[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/)
     end
 
     it "generates different UUIDs for different records" do
-      uuid1 = FixtureBot::Key.generate_uuid(:users, :admin)
-      uuid2 = FixtureBot::Key.generate_uuid(:users, :reader)
+      uuid1 = key.generate(:users, :admin)
+      uuid2 = key.generate(:users, :reader)
       expect(uuid1).not_to eq(uuid2)
     end
 
     it "generates different UUIDs for same name in different tables" do
-      uuid1 = FixtureBot::Key.generate_uuid(:users, :admin)
-      uuid2 = FixtureBot::Key.generate_uuid(:posts, :admin)
+      uuid1 = key.generate(:users, :admin)
+      uuid2 = key.generate(:posts, :admin)
       expect(uuid1).not_to eq(uuid2)
+    end
+  end
+
+  describe FixtureBot::Key, ".resolve" do
+    it "resolves :integer to Key::Integer" do
+      expect(FixtureBot::Key.resolve(:integer)).to be_a(FixtureBot::Key::Integer)
+    end
+
+    it "resolves :uuid to Key::UUID" do
+      expect(FixtureBot::Key.resolve(:uuid)).to be_a(FixtureBot::Key::UUID)
+    end
+
+    it "passes through objects responding to #generate" do
+      custom = Object.new
+      def custom.generate(table_name, record_name) = 1
+      expect(FixtureBot::Key.resolve(custom)).to be(custom)
+    end
+
+    it "raises ArgumentError for unsupported symbols" do
+      expect { FixtureBot::Key.resolve(:bigint) }.to raise_error(ArgumentError, /unsupported primary key type/)
+    end
+
+    it "raises ArgumentError for objects not responding to #generate" do
+      expect { FixtureBot::Key.resolve("not a key") }.to raise_error(ArgumentError, /respond to #generate/)
     end
   end
 
@@ -260,7 +288,6 @@ RSpec.describe FixtureBot do
 
       expect(result.tables[:users][:alice][:email]).to eq("alice@blog.test")
     end
-
   end
 
   describe "unknown method errors" do
@@ -298,12 +325,143 @@ RSpec.describe FixtureBot do
   end
 
   describe "primary_key_type validation" do
-    it "raises ArgumentError for unsupported primary_key_type" do
+    it "raises ArgumentError for unsupported primary key type symbol" do
       expect {
         FixtureBot::Schema.define do
           table :users, singular: :user, columns: [:name], primary_key_type: :bigint
         end
-      }.to raise_error(ArgumentError, /unsupported primary_key_type: :bigint/)
+      }.to raise_error(ArgumentError, /unsupported primary key type: :bigint/)
+    end
+
+    it "raises ArgumentError for objects not responding to #generate" do
+      not_a_key = Object.new
+      expect {
+        FixtureBot::Schema.define do
+          table :users, singular: :user, columns: [:name], primary_key_type: not_a_key
+        end
+      }.to raise_error(ArgumentError, /respond to #generate/)
+    end
+
+    it "accepts a custom Key strategy object" do
+      custom = Object.new
+      def custom.generate(table_name, record_name) = 1
+
+      schema = FixtureBot::Schema.define do
+        table :users, singular: :user, columns: [:name], primary_key_type: custom
+      end
+
+      expect(schema.tables[:users].primary_key_type).to be(custom)
+    end
+  end
+
+  describe "hardcoded IDs" do
+    let(:schema) do
+      FixtureBot::Schema.define do
+        table :users, singular: :user, columns: [:name, :email]
+        table :posts, singular: :post, columns: [:title, :author_id] do
+          belongs_to :author, table: :users
+        end
+      end
+    end
+
+    it "uses the hardcoded integer id" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          id 42
+          name "Brad"
+        end
+      end
+
+      expect(result.tables[:users][:admin][:id]).to eq(42)
+    end
+
+    it "uses the hardcoded string id" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          id "550e8400-e29b-41d4-a716-446655440000"
+          name "Brad"
+        end
+      end
+
+      expect(result.tables[:users][:admin][:id]).to eq("550e8400-e29b-41d4-a716-446655440000")
+    end
+
+    it "falls back to generated id when not hardcoded" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          name "Brad"
+        end
+      end
+
+      expect(result.tables[:users][:admin][:id]).to be_a(Integer)
+    end
+
+    it "resolves belongs_to references to hardcoded ids" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          id 42
+          name "Brad"
+        end
+
+        post :hello do
+          title "Hello"
+          author :admin
+        end
+      end
+
+      expect(result.tables[:posts][:hello][:author_id]).to eq(42)
+    end
+  end
+
+  describe "custom primary key column" do
+    let(:schema) do
+      FixtureBot::Schema.define do
+        table :users, singular: :user, columns: [:name],
+          primary_key_type: :uuid, primary_key_column: :custom_primary_key_col
+        table :posts, singular: :post, columns: [:title, :author_id] do
+          belongs_to :author, table: :users
+        end
+      end
+    end
+
+    it "uses the custom column name in record output" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          name "Brad"
+        end
+      end
+
+      admin = result.tables[:users][:admin]
+      expect(admin).to have_key(:custom_primary_key_col)
+      expect(admin).not_to have_key(:id)
+      expect(admin[:custom_primary_key_col]).to match(/\A[0-9a-f]{8}-/)
+    end
+
+    it "allows hardcoding via the custom column name" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          custom_primary_key_col "550e8400-e29b-41d4-a716-446655440000"
+          name "Brad"
+        end
+      end
+
+      expect(result.tables[:users][:admin][:custom_primary_key_col]).to eq("550e8400-e29b-41d4-a716-446655440000")
+    end
+
+    it "resolves belongs_to foreign keys to the hardcoded value" do
+      result = FixtureBot.define(schema) do
+        user :admin do
+          custom_primary_key_col "550e8400-e29b-41d4-a716-446655440000"
+          name "Brad"
+        end
+
+        post :hello do
+          title "Hello"
+          author :admin
+        end
+      end
+
+      expect(result.tables[:posts][:hello][:author_id]).to eq("550e8400-e29b-41d4-a716-446655440000")
     end
   end
 end

@@ -41,11 +41,12 @@ RSpec.describe FixtureBot::Rails::SchemaLoader, "PostgreSQL UUID detection" do
     allow(connection).to receive(:columns).with("users").and_return([uuid_column])
   end
 
-  it "detects :uuid when column type is :uuid" do
-    expect(schema.tables[:users].primary_key_type).to eq(:uuid)
+  it "detects UUID key when column type is :uuid" do
+    expect(schema.tables[:users].primary_key_type).to be_a(FixtureBot::Key::UUID)
+    expect(schema.tables[:users].primary_key_column).to eq(:id)
   end
 
-  it "still detects :integer for other tables" do
-    expect(schema.tables[:posts].primary_key_type).to eq(:integer)
+  it "still detects Integer key for other tables" do
+    expect(schema.tables[:posts].primary_key_type).to be_a(FixtureBot::Key::Integer)
   end
 end
