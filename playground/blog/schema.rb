@@ -10,6 +10,10 @@ FixtureBot::Schema.define do
     belongs_to :author, table: :users
   end
 
+  table :votes, singular: :vote, columns: [:user_id, :votable_id, :votable_type] do
+    belongs_to :user, table: :users
+  end
+
   table :tags, singular: :tag, columns: [:name]
 
   join_table :posts_tags, :posts, :tags

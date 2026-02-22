@@ -238,6 +238,46 @@ FixtureBot.define do
 end
 ```
 
+### Polymorphic associations
+
+Reference records using Rails polymorphic associations:
+
+```ruby
+FixtureBot.define do
+  post :hello_world do
+    title "Hello World"
+    author :brad
+  end
+
+  user :alice do
+    name "Alice"
+  end
+
+  vote :like do
+    user :alice
+    votable post(:hello_world)  # sets votable_id and votable_type: Post
+  end
+end
+```
+
+The `votable post(:hello_world)` syntax sets both `votable_id` (to the post's stable ID) and `votable_type` (to `"Post"`).
+
+FixtureBot auto-detects polymorphic associations from your schema columns. Just include both `_id` and `_type` columns:
+
+```ruby
+FixtureBot::Schema.define do
+  table :posts, singular: :post, columns: [:title, :author_id] do
+    belongs_to :author, table: :users
+  end
+
+  table :votes, singular: :vote, columns: [:user_id, :votable_id, :votable_type] do
+    belongs_to :user, table: :users
+  end
+end
+```
+
+In Rails, FixtureBot auto-detects polymorphic columns (`_id` + `_type` pairs) from your database schema automatically.
+
 ### Implicit vs explicit style
 
 By default, the block is evaluated implicitly. Table methods like `user` and `post` are available directly:

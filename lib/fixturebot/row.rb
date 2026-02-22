@@ -2,19 +2,33 @@
 
 module FixtureBot
   module Row
-    Declaration = Data.define(:table, :name, :literal_values, :association_refs, :tag_refs)
+    TableReference = Data.define(:table_name, :record_name)
+    Declaration = Data.define(:table, :name, :literal_values, :association_refs, :tag_refs, :polymorphic_refs)
 
     class Definition
-      attr_reader :literal_values, :association_refs, :tag_refs
+      attr_reader :literal_values, :association_refs, :tag_refs, :polymorphic_refs
 
       def initialize(table, schema)
         @literal_values = {}
         @association_refs = {}
         @tag_refs = {}
+        @polymorphic_refs = {}
 
         define_column_methods(table)
         define_association_methods(table)
+        define_polymorphic_methods(table)
         define_join_table_methods(table, schema)
+        define_table_reference_methods(schema, table)
+      end
+
+      def define_table_reference_methods(schema, table)
+        schema.tables.each_value do |tbl|
+          next if table.belongs_to_associations.any? { |a| a.name == tbl.singular_name }
+          next if table.polymorphic_belongs_to_associations.any? { |a| a.name == tbl.singular_name }
+          define_singleton_method(tbl.singular_name) do |record_name|
+            TableReference.new(table_name: tbl.name, record_name: record_name)
+          end
+        end
       end
 
       private
@@ -31,6 +45,14 @@ module FixtureBot
         table.belongs_to_associations.each do |assoc|
           define_singleton_method(assoc.name) do |ref|
             @association_refs[assoc.name] = ref
+          end
+        end
+      end
+
+      def define_polymorphic_methods(table)
+        table.polymorphic_belongs_to_associations.each do |assoc|
+          define_singleton_method(assoc.name) do |table_ref|
+            @polymorphic_refs[assoc.name] = table_ref
           end
         end
       end
@@ -69,6 +91,8 @@ module FixtureBot
             result[col] = @row.literal_values[col]
           elsif foreign_key_values.key?(col)
             result[col] = foreign_key_values[col]
+          elsif polymorphic_values.key?(col)
+            result[col] = polymorphic_values[col]
           elsif defaulted_values.key?(col)
             result[col] = defaulted_values[col]
           end
@@ -112,10 +136,27 @@ module FixtureBot
         end
       end
 
+      def polymorphic_values
+        @polymorphic_values ||= @row.polymorphic_refs.each_with_object({}) do |(assoc_name, table_ref), hash|
+          assoc = @table.polymorphic_belongs_to_associations.find { |a| a.name == assoc_name }
+          hash[assoc.foreign_key] = Key.generate(table_ref.table_name, table_ref.record_name)
+          hash[assoc.type_column] = classify(table_ref.table_name)
+        end
+      end
+
+      def classify(table_name)
+        if defined?(ActiveSupport::Inflector)
+          ActiveSupport::Inflector.classify(table_name.to_s)
+        else
+          table_name.to_s.sub(/s$/, "").capitalize
+        end
+      end
+
       def defaulted_values
         @defaulted_values ||= @defaults.each_with_object({}) do |(col, block), result|
           next if @row.literal_values.key?(col)
           next if foreign_key_values.key?(col)
+          next if polymorphic_values.key?(col)
 
           fixture = Default::Fixture.new(key: @row.name)
           context = Default::Context.new(literal_values: @row.literal_values)

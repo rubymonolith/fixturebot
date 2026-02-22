@@ -31,6 +31,22 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
         t.integer "post_id", null: false
         t.integer "tag_id", null: false
       end
+
+      create_table "votes", force: :cascade do |t|
+        t.integer "user_id"
+        t.integer "votable_id"
+        t.string "votable_type"
+        t.timestamps
+      end
+
+      create_table "comments", force: :cascade do |t|
+        t.text "body"
+        t.integer "author_id"
+        t.string "author_type"
+        t.integer "parent_id"
+        t.string "parent_type"
+        t.timestamps
+      end
     end
   end
 
@@ -41,7 +57,7 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
   subject(:schema) { described_class.load }
 
   it "loads regular tables with columns" do
-    expect(schema.tables.keys).to contain_exactly(:users, :posts, :tags)
+    expect(schema.tables.keys).to contain_exactly(:users, :posts, :tags, :votes, :comments)
   end
 
   it "skips id, created_at, updated_at columns" do
@@ -69,5 +85,28 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
 
   it "does not include join tables in regular tables" do
     expect(schema.tables).not_to have_key(:posts_tags)
+  end
+
+  it "detects polymorphic associations from _id and _type columns" do
+    polymorphic_assocs = schema.tables[:votes].polymorphic_belongs_to_associations
+    expect(polymorphic_assocs.size).to eq(1)
+
+    votable = polymorphic_assocs.first
+    expect(votable.name).to eq(:votable)
+    expect(votable.foreign_key).to eq(:votable_id)
+    expect(votable.type_column).to eq(:votable_type)
+  end
+
+  it "excludes polymorphic foreign keys from belongs_to associations" do
+    belongs_to = schema.tables[:votes].belongs_to_associations
+    expect(belongs_to).to be_empty
+  end
+
+  it "detects multiple polymorphic associations" do
+    polymorphic_assocs = schema.tables[:comments].polymorphic_belongs_to_associations
+    expect(polymorphic_assocs.size).to eq(2)
+
+    names = polymorphic_assocs.map(&:name)
+    expect(names).to include(:author, :parent)
   end
 end

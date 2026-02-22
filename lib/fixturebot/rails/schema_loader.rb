@@ -42,11 +42,24 @@ module FixtureBot
           .reject { |c| framework_column?(c.name) }
           .map { |c| c.name.to_sym }
 
+        column_names = columns.map(&:to_s)
+        polymorphic_pairs = detect_polymorphic_columns(column_names)
+
         associations = @connection.foreign_keys(name).map do |fk|
+          next if polymorphic_pairs.key?(fk.column.to_s)
+
           Schema::BelongsTo.new(
             name: association_name(fk.column),
             table: fk.to_table.to_sym,
             foreign_key: fk.column.to_sym
+          )
+        end.compact
+
+        polymorphic_associations = polymorphic_pairs.map do |id_col, type_col|
+          Schema::PolymorphicBelongsTo.new(
+            name: association_name(id_col),
+            foreign_key: id_col.to_sym,
+            type_column: type_col.to_sym
           )
         end
 
@@ -54,8 +67,19 @@ module FixtureBot
           name: name.to_sym,
           singular_name: singularize(name),
           columns: columns,
-          belongs_to_associations: associations
+          belongs_to_associations: associations,
+          polymorphic_belongs_to_associations: polymorphic_associations
         )
+      end
+
+      def detect_polymorphic_columns(column_names)
+        pairs = {}
+        id_columns = column_names.select { |c| c.end_with?("_id") }
+        id_columns.each do |id_col|
+          type_col = id_col.sub(/_id$/, "_type")
+          pairs[id_col] = type_col if column_names.include?(type_col)
+        end
+        pairs
       end
 
       def build_join_table(name)
