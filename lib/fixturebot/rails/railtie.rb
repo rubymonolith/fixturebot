@@ -9,7 +9,13 @@ module FixtureBot
         namespace :fixturebot do
           desc "Compile FixtureBot DSL to YAML fixture files"
           task compile: :environment do
-            FixtureBot::Rails.compile
+            files = ENV["FILES"]&.split(",")&.map(&:strip)
+            output_dir = ENV["OUTPUT_DIR"]
+
+            FixtureBot::Rails.compile(
+              fixtures_file: files,
+              output_dir: output_dir
+            )
           end
         end
       end

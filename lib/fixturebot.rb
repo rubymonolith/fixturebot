@@ -27,15 +27,21 @@ module FixtureBot
     end
   end
 
-  def self.define_from_file(schema, fixtures_path)
+  def self.define_from_files(schema, *paths)
     @pending_blocks = []
-    content = File.read(fixtures_path)
-    eval(content, TOPLEVEL_BINDING, fixtures_path, 1)
+    paths.each do |path|
+      content = File.read(path)
+      eval(content, TOPLEVEL_BINDING, path, 1)
+    end
 
     definition = Definition.new(schema)
     @pending_blocks.each { |blk| evaluate_block(definition, blk) }
     @pending_blocks = nil
     FixtureSet.new(schema, definition)
+  end
+
+  def self.define_from_file(schema, fixtures_path)
+    define_from_files(schema, fixtures_path)
   end
 
   def self.evaluate_block(definition, block)

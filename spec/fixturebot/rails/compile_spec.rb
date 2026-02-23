@@ -101,4 +101,112 @@ RSpec.describe FixtureBot::Rails, ".compile" do
       expect(Dir.exist?(output_dir)).to be false
     end
   end
+
+  it "compiles from multiple fixture files" do
+    Dir.mktmpdir do |tmpdir|
+      users_file = File.join(tmpdir, "users.rb")
+      posts_file = File.join(tmpdir, "posts.rb")
+      output_dir = File.join(tmpdir, "fixtures")
+
+      File.write(users_file, <<~RUBY)
+        FixtureBot.define do
+          user :alice do
+            name "Alice"
+            email "alice@example.com"
+          end
+        end
+      RUBY
+
+      File.write(posts_file, <<~RUBY)
+        FixtureBot.define do
+          post :hello do
+            title "Hello World"
+            body "First post"
+            author :alice
+          end
+        end
+      RUBY
+
+      described_class.compile(
+        fixtures_file: [users_file, posts_file],
+        output_dir: output_dir
+      )
+
+      users_yaml = YAML.load_file(File.join(output_dir, "users.yml"))
+      expect(users_yaml.keys).to contain_exactly("alice")
+      expect(users_yaml["alice"]["name"]).to eq("Alice")
+
+      posts_yaml = YAML.load_file(File.join(output_dir, "posts.yml"))
+      expect(posts_yaml.keys).to contain_exactly("hello")
+      expect(posts_yaml["hello"]["title"]).to eq("Hello World")
+    end
+  end
+
+  it "merges defaults from a base file with records from domain files" do
+    Dir.mktmpdir do |tmpdir|
+      base_file = File.join(tmpdir, "base.rb")
+      users_file = File.join(tmpdir, "users.rb")
+      output_dir = File.join(tmpdir, "fixtures")
+
+      File.write(base_file, <<~RUBY)
+        FixtureBot.define do
+          user.email { |fixture| "\#{fixture.key}@example.com" }
+        end
+      RUBY
+
+      File.write(users_file, <<~RUBY)
+        FixtureBot.define do
+          user :alice do
+            name "Alice"
+          end
+
+          user :bob do
+            name "Bob"
+          end
+        end
+      RUBY
+
+      described_class.compile(
+        fixtures_file: [base_file, users_file],
+        output_dir: output_dir
+      )
+
+      users_yaml = YAML.load_file(File.join(output_dir, "users.yml"))
+      expect(users_yaml["alice"]["name"]).to eq("Alice")
+      expect(users_yaml["alice"]["email"]).to eq("alice@example.com")
+      expect(users_yaml["bob"]["email"]).to eq("bob@example.com")
+    end
+  end
+
+  it "allows later files to override defaults from earlier files" do
+    Dir.mktmpdir do |tmpdir|
+      base_file = File.join(tmpdir, "base.rb")
+      override_file = File.join(tmpdir, "override.rb")
+      output_dir = File.join(tmpdir, "fixtures")
+
+      File.write(base_file, <<~RUBY)
+        FixtureBot.define do
+          user.email { "default@example.com" }
+        end
+      RUBY
+
+      File.write(override_file, <<~RUBY)
+        FixtureBot.define do
+          user.email { "overridden@example.com" }
+
+          user :alice do
+            name "Alice"
+          end
+        end
+      RUBY
+
+      described_class.compile(
+        fixtures_file: [base_file, override_file],
+        output_dir: output_dir
+      )
+
+      users_yaml = YAML.load_file(File.join(output_dir, "users.yml"))
+      expect(users_yaml["alice"]["email"]).to eq("overridden@example.com")
+    end
+  end
 end
