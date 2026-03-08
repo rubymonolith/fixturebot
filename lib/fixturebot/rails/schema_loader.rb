@@ -38,11 +38,15 @@ module FixtureBot
       end
 
       def build_table(name)
+        pk_column_name = @connection.primary_key(name) || "id"
+        pk_column = @connection.columns(name).find { |c| c.name == pk_column_name }
+        key = pk_column && pk_column.type == :uuid ? Key::Uuid : Key::Integer
+
         columns = @connection.columns(name)
-          .reject { |c| framework_column?(c.name) }
+          .reject { |c| c.name == pk_column_name || timestamp_column?(c.name) }
           .map { |c| c.name.to_sym }
 
-        associations = @connection.foreign_keys(name).map do |fk|
+        fk_associations = @connection.foreign_keys(name).map do |fk|
           Schema::BelongsTo.new(
             name: association_name(fk.column),
             table: fk.to_table.to_sym,
@@ -50,11 +54,17 @@ module FixtureBot
           )
         end
 
+        polymorphic_associations = detect_polymorphic_associations(name, columns, fk_associations)
+
+        associations = fk_associations + polymorphic_associations
+
         Schema::Table.new(
           name: name.to_sym,
           singular_name: singularize(name),
           columns: columns,
-          belongs_to_associations: associations
+          associations: associations,
+          key: key,
+          primary_key: pk_column_name.to_sym
         )
       end
 
@@ -74,8 +84,8 @@ module FixtureBot
         @connection.tables - %w[ar_internal_metadata schema_migrations]
       end
 
-      def framework_column?(name)
-        %w[id created_at updated_at].include?(name)
+      def timestamp_column?(name)
+        %w[created_at updated_at].include?(name)
       end
 
       def foreign_key_column?(column)
@@ -108,6 +118,25 @@ module FixtureBot
         table_names.select do |name|
           next false if @connection.primary_key(name)
           foreign_key_columns(name).size == 2
+        end
+      end
+
+      def detect_polymorphic_associations(table_name, columns, fk_associations)
+        fk_column_names = fk_associations.map { |a| a.foreign_key }
+        id_columns = columns.select { |c| c.to_s.end_with?("_id") }
+
+        id_columns.filter_map do |id_col|
+          next if fk_column_names.include?(id_col)
+
+          name = id_col.to_s.sub(/_id$/, "").to_sym
+          type_col = Schema::PolymorphicBelongsTo.foreign_type(name)
+          next unless columns.include?(type_col)
+
+          Schema::PolymorphicBelongsTo.new(
+            name: name,
+            foreign_key: id_col,
+            foreign_type: type_col
+          )
         end
       end
     end
