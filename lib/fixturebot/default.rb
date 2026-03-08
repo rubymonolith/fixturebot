@@ -2,8 +2,6 @@
 
 module FixtureBot
   module Default
-    Fixture = Data.define(:key)
-
     class Definition
       def initialize(table, defaults)
         @defaults = defaults
@@ -16,22 +14,39 @@ module FixtureBot
         table.columns.each do |col|
           define_singleton_method(col) do |&block|
             raise ArgumentError, "#{col} requires a block" unless block
-            @defaults[col] = block
+            @defaults[col] = Generator.new(block)
           end
         end
       end
     end
 
-    class Context
-      def initialize(literal_values: {})
-        define_literal_value_methods(literal_values)
+    Fixture = Data.define(:key)
+
+    class Generator
+      def initialize(block)
+        @block = block
+      end
+
+      def generate(record_name, literal_values)
+        context = Context.new(literal_values)
+        context.instance_exec(Fixture.new(key: record_name), &@block)
       end
 
       private
 
-      def define_literal_value_methods(literal_values)
-        literal_values.each do |col, val|
-          define_singleton_method(col) { val }
+      Context = Struct.new(:literal_values) do
+        private
+
+        def method_missing(name, *)
+          if literal_values.key?(name)
+            literal_values[name]
+          else
+            super
+          end
+        end
+
+        def respond_to_missing?(name, *)
+          literal_values.key?(name) || super
         end
       end
     end
