@@ -70,4 +70,44 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
   it "does not include join tables in regular tables" do
     expect(schema.tables).not_to have_key(:posts_tags)
   end
+
+  it "detects default key strategy and primary key column" do
+    table = schema.tables[:users]
+    expect(table.key).to equal(FixtureBot::Key::Integer)
+    expect(table.primary_key).to eq(:id)
+  end
+
+  context "with polymorphic associations" do
+    before do
+      ActiveRecord::Schema.define(version: 2024_01_02_000000) do
+        create_table "votes", force: :cascade do |t|
+          t.integer "votable_id"
+          t.string "votable_type"
+          t.integer "voter_id"
+          t.timestamps
+        end
+
+        add_foreign_key "votes", "users", column: "voter_id"
+      end
+    end
+
+    it "detects polymorphic associations from _id/_type pairs" do
+      poly_assocs = schema.tables[:votes].polymorphic_associations
+      expect(poly_assocs.size).to eq(1)
+      expect(poly_assocs.first.name).to eq(:votable)
+      expect(poly_assocs.first.foreign_key).to eq(:votable_id)
+      expect(poly_assocs.first.foreign_type).to eq(:votable_type)
+    end
+
+    it "does not treat FK-constrained _id columns as polymorphic" do
+      poly_names = schema.tables[:votes].polymorphic_associations.map(&:name)
+      expect(poly_names).not_to include(:voter)
+    end
+
+    it "includes both FK-based and polymorphic associations" do
+      assocs = schema.tables[:votes].associations
+      expect(assocs.size).to eq(2)
+      expect(assocs.map(&:name)).to contain_exactly(:voter, :votable)
+    end
+  end
 end

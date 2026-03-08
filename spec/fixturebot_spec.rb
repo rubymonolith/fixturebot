@@ -134,7 +134,7 @@ RSpec.describe FixtureBot do
       expect(result.tables[:users][:admin][:email]).to be_nil
     end
 
-    it "receives a fixture object as block parameter" do
+    it "receives the fixture as block parameter" do
       result = FixtureBot.define(schema) do
         user.email { |fixture| "#{fixture.key}@blog.test" }
 
