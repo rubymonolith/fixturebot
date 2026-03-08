@@ -13,4 +13,9 @@ FixtureBot::Schema.define do
   table :tags, singular: :tag, columns: [:name]
 
   join_table :posts_tags, :posts, :tags
+
+  table :votes, singular: :vote, columns: [:votable_id, :votable_type, :voter_id] do
+    polymorphic :votable
+    belongs_to :voter, table: :users
+  end
 end

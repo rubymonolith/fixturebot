@@ -51,4 +51,19 @@ FixtureBot.define do
     post :tdd_guide
     author :brad
   end
+
+  vote :alice_likes_hello do
+    votable post(:hello_world)
+    voter :alice
+  end
+
+  vote :brad_likes_tdd do
+    votable post(:tdd_guide)
+    voter :brad
+  end
+
+  vote :charlie_likes_great_post do
+    votable comment(:great_post)
+    voter :charlie
+  end
 end
