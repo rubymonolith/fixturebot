@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
-require "zlib"
+require_relative "key/integer"
+require_relative "key/uuid"
 
 module FixtureBot
   module Key
+    # Backward compatibility
     def self.generate(table_name, record_name)
-      Zlib.crc32("#{table_name}:#{record_name}") & 0x7FFFFFFF
+      Integer.generate(table_name, record_name)
     end
   end
 end
