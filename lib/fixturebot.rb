@@ -6,6 +6,7 @@ require_relative "fixturebot/key"
 require_relative "fixturebot/default"
 require_relative "fixturebot/row"
 require_relative "fixturebot/definition"
+require_relative "fixturebot/key_registry"
 require_relative "fixturebot/fixture_set"
 require_relative "fixturebot/compiler"
 require_relative "fixturebot/cli"
@@ -14,28 +15,27 @@ module FixtureBot
   class Error < StandardError; end
 
   # Programmatic API: FixtureBot.define(schema) { ... }
-  # File API (no schema): FixtureBot.define { ... } — registers block for define_from_file
+  # File API (no schema): FixtureBot.define { ... } — evaluated against current_definition if set
   def self.define(schema = nil, &block)
     if schema
       definition = Definition.new(schema)
       evaluate_block(definition, block)
       FixtureSet.new(schema, definition)
-    else
-      @pending_blocks ||= []
-      @pending_blocks << block
+    elsif Thread.current[:fixturebot_definition]
+      evaluate_block(Thread.current[:fixturebot_definition], block)
       nil
+    else
+      raise Error, "FixtureBot.define without a schema must be called from within define_from_file"
     end
   end
 
   def self.define_from_file(schema, fixtures_path)
-    @pending_blocks = []
-    content = File.read(fixtures_path)
-    eval(content, TOPLEVEL_BINDING, fixtures_path, 1)
-
     definition = Definition.new(schema)
-    @pending_blocks.each { |blk| evaluate_block(definition, blk) }
-    @pending_blocks = nil
+    Thread.current[:fixturebot_definition] = definition
+    eval(File.read(fixtures_path), TOPLEVEL_BINDING, fixtures_path, 1)
     FixtureSet.new(schema, definition)
+  ensure
+    Thread.current[:fixturebot_definition] = nil
   end
 
   def self.evaluate_block(definition, block)

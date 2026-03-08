@@ -33,7 +33,7 @@ module FixtureBot
       row_def = Row::Definition.new(table, @schema)
       row_def.instance_eval(&block) if block
       @rows << Row::Declaration.new(
-        table: table.name,
+        table_name: table.name,
         name: record_name,
         literal_values: row_def.literal_values,
         association_refs: row_def.association_refs,
