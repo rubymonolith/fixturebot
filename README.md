@@ -9,6 +9,8 @@ FixtureBot lets you define your test data in a Ruby DSL and compiles it into sta
 - **Ruby DSL** for defining records, associations, and join tables
 - **Generators** for filling in required columns (like email) across all records
 - **Stable IDs** so foreign keys are consistent and diffs are clean across runs
+- **UUID support** for tables with UUID primary keys
+- **Polymorphic associations** with automatic type column resolution
 - **Schema auto-detection** from your Rails database (no manual column lists)
 - **Auto-generates** before your test suite runs (RSpec and Minitest)
 
@@ -175,7 +177,13 @@ FixtureBot.define do
 end
 ```
 
-The generator block receives a `fixture` object as a block parameter with access to `fixture.key` (the record's symbol name). Bare methods inside the block refer to column values set on the record.
+The generator block receives a `fixture` object with a `key` method (the record's symbol name). Bare methods inside the block refer to column values set on the record:
+
+```ruby
+FixtureBot.define do
+  user.display_name { |fixture| "#{fixture.key} (#{email})" }
+end
+```
 
 When a generator covers all the columns you need, records don't need a block at all:
 
@@ -225,6 +233,46 @@ FixtureBot.define do
 end
 ```
 
+### Polymorphic associations
+
+For polymorphic `belongs_to`, reference the target using its table helper to set both `_id` and `_type` columns:
+
+```ruby
+FixtureBot.define do
+  post :hello do
+    title "Hello"
+  end
+
+  comment :nice do
+    body "Nice post"
+  end
+
+  vote :upvote_post do
+    votable post(:hello)       # sets votable_id and votable_type: "Post"
+  end
+
+  vote :upvote_comment do
+    votable comment(:nice)     # sets votable_id and votable_type: "Comment"
+  end
+end
+```
+
+In the manual schema, declare polymorphic associations with `polymorphic`:
+
+```ruby
+FixtureBot::Schema.define do
+  table :posts, singular: :post, columns: [:title]
+  table :comments, singular: :comment, columns: [:body]
+
+  table :votes, singular: :vote, columns: [:votable_id, :votable_type, :voter_id] do
+    polymorphic :votable
+    belongs_to :voter, table: :users
+  end
+end
+```
+
+In Rails, polymorphic associations are auto-detected from `_id`/`_type` column pairs that don't have a foreign key constraint.
+
 ### Join tables (HABTM)
 
 Reference multiple records for join table associations:
@@ -237,6 +285,66 @@ FixtureBot.define do
   end
 end
 ```
+
+### Hardcoded IDs
+
+By default, FixtureBot generates stable IDs deterministically from the table and record name. You can override this with an explicit value:
+
+```ruby
+FixtureBot.define do
+  user :admin do
+    id 42
+    name "Admin"
+  end
+
+  post :hello do
+    title "Hello"
+    author :admin  # author_id resolves to 42
+  end
+end
+```
+
+### UUID primary keys
+
+Tables with UUID primary keys work automatically in Rails (detected from the column type). In the manual schema, pass `key: FixtureBot::Key::Uuid`:
+
+```ruby
+FixtureBot::Schema.define do
+  table :projects, singular: :project, columns: [:name], key: FixtureBot::Key::Uuid
+end
+```
+
+FixtureBot generates deterministic UUID v5 values, so the output is stable across runs.
+
+You can also provide your own key strategy — any object (or module) that responds to `generate(table_name, record_name)`. For example, Stripe-style prefixed IDs:
+
+```ruby
+module PrefixedKey
+  module_function
+
+  def generate(table_name, record_name)
+    hash = Zlib.crc32("#{table_name}:#{record_name}").to_s(36)
+    "#{table_name.to_s.chomp('s')}_#{hash}"
+  end
+end
+
+FixtureBot::Schema.define do
+  table :customers, singular: :customer, columns: [:name], key: PrefixedKey
+  # => customer_id: "customer_1a2b3c"
+end
+```
+
+### Custom primary key column
+
+If your table uses a column other than `id` as the primary key:
+
+```ruby
+FixtureBot::Schema.define do
+  table :users, singular: :user, columns: [:name], primary_key: :uid
+end
+```
+
+In Rails, this is auto-detected from the database.
 
 ### Implicit vs explicit style
 
