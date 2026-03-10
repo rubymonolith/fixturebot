@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 RSpec.describe FixtureBot do
   it "has a version number" do
     expect(FixtureBot::VERSION).not_to be nil
@@ -144,6 +146,52 @@ RSpec.describe FixtureBot do
       expect(result.tables[:users][:alice][:email]).to eq("alice@blog.test")
     end
 
+  end
+
+  describe ".require" do
+    let(:schema) do
+      FixtureBot::Schema.define do
+        table :users, singular: :user, columns: [:name, :email]
+        table :posts, singular: :post, columns: [:title, :author_id] do
+          belongs_to :author, table: :users
+        end
+      end
+    end
+
+    it "loads fixture files from a glob" do
+      Dir.mktmpdir do |dir|
+        subdir = File.join(dir, "fixtures")
+        Dir.mkdir(subdir)
+
+        File.write("#{subdir}/users.rb", <<~RUBY)
+          FixtureBot.define do
+            user :alice do
+              name "Alice"
+              email "alice@example.com"
+            end
+          end
+        RUBY
+
+        File.write("#{subdir}/posts.rb", <<~RUBY)
+          FixtureBot.define do
+            post :hello do
+              title "Hello"
+              author :alice
+            end
+          end
+        RUBY
+
+        File.write("#{dir}/fixtures.rb", <<~RUBY)
+          FixtureBot.require "#{subdir}/*.rb"
+        RUBY
+
+        result = FixtureBot.define_from_file(schema, "#{dir}/fixtures.rb")
+
+        expect(result.tables[:users][:alice][:name]).to eq("Alice")
+        expect(result.tables[:posts][:hello][:title]).to eq("Hello")
+        expect(result.tables[:posts][:hello][:author_id]).to eq(result.tables[:users][:alice][:id])
+      end
+    end
   end
 
   describe "unknown method errors" do

@@ -1,3 +1,5 @@
+FixtureBot.require "<%= rspec? ? "spec" : "test" %>/fixtures/**/*.rb"
+
 FixtureBot.define do
   # Define your fixtures here. Example:
   #

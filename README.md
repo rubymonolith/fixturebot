@@ -346,6 +346,40 @@ end
 
 In Rails, this is auto-detected from the database.
 
+### Multiple files
+
+For larger apps, split fixtures across multiple files using `FixtureBot.require`:
+
+```ruby
+# spec/fixtures.rb
+FixtureBot.require "spec/fixtures/**/*.rb"
+
+FixtureBot.define do
+  user.email { |fixture| "#{fixture.key}@example.com" }
+end
+```
+
+```ruby
+# spec/fixtures/users.rb
+FixtureBot.define do
+  user :brad do
+    name "Brad"
+  end
+end
+```
+
+```ruby
+# spec/fixtures/posts.rb
+FixtureBot.define do
+  post :hello do
+    title "Hello"
+    author :brad
+  end
+end
+```
+
+Each file calls `FixtureBot.define` with its own block. Files are loaded in alphabetical order. References across files work because everything is resolved after all files are loaded.
+
 ### Implicit vs explicit style
 
 By default, the block is evaluated implicitly. Table methods like `user` and `post` are available directly:

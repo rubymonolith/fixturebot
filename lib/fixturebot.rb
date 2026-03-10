@@ -29,6 +29,10 @@ module FixtureBot
     end
   end
 
+  def self.require(glob)
+    Dir.glob(glob).sort.each { |f| load f }
+  end
+
   def self.define_from_file(schema, fixtures_path)
     definition = Definition.new(schema)
     Thread.current[:fixturebot_definition] = definition
