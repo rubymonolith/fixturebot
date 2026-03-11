@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+require "simplecov"
+SimpleCov.start do
+  add_filter "/spec/"
+  add_filter "/playground/"
+  enable_coverage :branch
+end
+
 require "fixturebot"
 
 RSpec.configure do |config|
