@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- **FactoryBot-compatible syntax methods.** `build`, `create`, `build_stubbed`, `attributes_for`, and list/pair variants are now available in your tests. Pass a table name and fixture name: `build(:user, :brad)`, `create(:user, :brad, name: "X")`. These delegate to Rails fixture accessors under the hood.
+- **SimpleCov** added for test coverage reporting.
+
 ## 0.3.0
 
 ### Added
