@@ -157,4 +157,68 @@ RSpec.describe "Rails integration", :integration do
     expect(File.exist?(File.join(fixtures_dir, "tags.yml"))).to be true
     expect(File.exist?(File.join(fixtures_dir, "posts_tags.yml"))).to be true
   end
+
+  it "supports build, create, and attributes_for via FixtureBot::Syntax::Methods" do
+    # Write a Minitest test that exercises the syntax methods
+    test_file = File.join(@app_dir, "test", "syntax_test.rb")
+    File.write(test_file, <<~RUBY)
+      require "test_helper"
+
+      class SyntaxTest < ActiveSupport::TestCase
+        fixtures :all
+
+        test "build returns unpersisted dup" do
+          blog = build(:blog, :tech)
+          assert blog.new_record?, "build should return an unpersisted record"
+          assert_equal "Tech Blog", blog.title
+        end
+
+        test "build with overrides" do
+          blog = build(:blog, :tech, title: "Overridden")
+          assert_equal "Overridden", blog.title
+        end
+
+        test "create without overrides returns persisted fixture" do
+          blog = create(:blog, :tech)
+          assert blog.persisted?
+          assert_equal "Tech Blog", blog.title
+        end
+
+        test "create with overrides saves new record" do
+          blog = create(:blog, :tech, title: "New Title")
+          assert blog.persisted?
+          assert_equal "New Title", blog.title
+        end
+
+        test "attributes_for returns hash without id and timestamps" do
+          attrs = attributes_for(:blog, :tech)
+          assert_equal "Tech Blog", attrs[:title]
+          assert_nil attrs[:id]
+          assert_nil attrs[:created_at]
+          assert_nil attrs[:updated_at]
+        end
+
+        test "build_list returns multiple records" do
+          blogs = build_list(:blog, :tech, :personal)
+          assert_equal 2, blogs.length
+          assert blogs.all?(&:new_record?)
+        end
+
+        test "create_list returns multiple persisted records" do
+          blogs = create_list(:blog, :tech, :personal)
+          assert_equal 2, blogs.length
+          assert blogs.all?(&:persisted?)
+        end
+
+        test "build_stubbed retains id and looks persisted" do
+          blog = build_stubbed(:blog, :tech)
+          assert_not_nil blog.id
+          assert_equal "Tech Blog", blog.title
+        end
+      end
+    RUBY
+
+    output = run_cmd!("bin/rails test test/syntax_test.rb", chdir: @app_dir)
+    expect(output).to match(/0 failures/)
+  end
 end

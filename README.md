@@ -422,6 +422,40 @@ FixtureBot::Schema.define do
 end
 ```
 
+## Migrating from FactoryBot
+
+FixtureBot provides `build`, `create`, `attributes_for`, and related methods that mirror FactoryBot's API. The key difference is that you pass both a table name and a fixture name instead of just a factory name:
+
+```ruby
+# FactoryBot                    # FixtureBot
+build(:user)                    # build(:user, :brad)
+create(:user)                   # create(:user, :brad)
+build(:user, name: "X")        # build(:user, :brad, name: "X")
+attributes_for(:user)           # attributes_for(:user, :brad)
+build_list(:user, 3)            # build_list(:user, :brad, :alice, :bob)
+create_list(:user, 3)           # create_list(:user, :brad, :alice, :bob)
+build_pair(:user)               # build_pair(:user, :brad, :alice)
+create_pair(:user)              # create_pair(:user, :brad, :alice)
+build_stubbed(:user)            # build_stubbed(:user, :brad)
+```
+
+### Method reference
+
+| Method | Behavior |
+|---|---|
+| `build(:user, :brad, **attrs)` | Duplicates the fixture, applies overrides. Returns unpersisted. |
+| `create(:user, :brad, **attrs)` | Without overrides: returns the fixture (already persisted). With overrides: `build` + `save!`. |
+| `build_stubbed(:user, :brad, **attrs)` | Like `build` but retains `id`. Looks persisted without touching DB. |
+| `attributes_for(:user, :brad, **attrs)` | Returns attributes hash, strips `id`/`created_at`/`updated_at`. |
+| `build_list(:user, :brad, :alice, **attrs)` | Maps each name through `build`. |
+| `create_list(:user, :brad, :alice, **attrs)` | Maps each name through `create`. |
+| `build_pair(:user, :brad, :alice, **attrs)` | Alias for `build_list` with 2 names. |
+| `create_pair(:user, :brad, :alice, **attrs)` | Alias for `create_list` with 2 names. |
+| `build_stubbed_list(:user, :brad, :alice, **attrs)` | Maps each name through `build_stubbed`. |
+| `build_stubbed_pair(:user, :brad, :alice, **attrs)` | Alias for `build_stubbed_list` with 2 names. |
+
+These methods are automatically available in your tests when you require `fixturebot/rspec` or `fixturebot/minitest`. They call the standard Rails fixture accessors under the hood, so `build(:user, :brad)` is equivalent to `users(:brad).dup`.
+
 ## Prior art
 
 ### [Rails fixtures](https://guides.rubyonrails.org/testing.html#the-low-down-on-fixtures)
