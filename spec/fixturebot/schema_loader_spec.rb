@@ -50,6 +50,11 @@ RSpec.describe FixtureBot::Rails::SchemaLoader do
     expect(schema.tables[:tags].columns).to contain_exactly(:name)
   end
 
+  it "orders columns alphabetically regardless of database column order" do
+    expect(schema.tables[:users].columns).to eq([:email, :name])
+    expect(schema.tables[:posts].columns).to eq([:author_id, :body, :title])
+  end
+
   it "detects belongs_to associations from foreign keys" do
     associations = schema.tables[:posts].belongs_to_associations
     expect(associations.size).to eq(1)
