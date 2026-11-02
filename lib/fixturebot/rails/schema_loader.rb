@@ -45,6 +45,7 @@ module FixtureBot
         columns = @connection.columns(name)
           .reject { |c| c.name == pk_column_name || timestamp_column?(c.name) }
           .map { |c| c.name.to_sym }
+          .sort
 
         fk_associations = @connection.foreign_keys(name).map do |fk|
           Schema::BelongsTo.new(
@@ -96,6 +97,7 @@ module FixtureBot
         @connection.columns(table_name)
           .select { |c| foreign_key_column?(c) }
           .map { |c| c.name }
+          .sort
       end
 
       def association_name(column_name)
